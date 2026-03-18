@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Diet Analysis Heatmaps</title>
-  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -43,7 +42,7 @@
 
     #status.error { color: #ff6b6b; }
 
-    .charts-grid {
+    #charts {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 1.5rem;
@@ -58,36 +57,22 @@
       padding: 1.25rem;
     }
 
-    .chart-card.full-width {
-      grid-column: 1 / -1;
-    }
-
     .chart-card h2 {
       font-size: 1rem;
       font-weight: 600;
       color: #c9d1e0;
       margin-bottom: 1rem;
+      text-transform: capitalize;
     }
 
-    .chart-card p.subtitle {
-      font-size: 0.8rem;
-      color: #666;
-      margin-top: -0.75rem;
-      margin-bottom: 1rem;
-    }
-
-    .chart-container {
+    .chart-card img {
       width: 100%;
-      height: 380px;
-    }
-
-    .chart-container.tall {
-      height: 440px;
+      border-radius: 8px;
+      display: block;
     }
 
     @media (max-width: 900px) {
-      .charts-grid { grid-template-columns: 1fr; }
-      .chart-card.full-width { grid-column: 1; }
+      #charts { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -99,143 +84,32 @@
 </header>
 
 <div id="status">Loading data from API...</div>
-
-<div class="charts-grid" id="charts" style="display:none;">
-
-  <div class="chart-card full-width">
-    <h2>Macronutrient Heatmap — All Diets</h2>
-    <p class="subtitle">Color intensity represents gram amounts per macronutrient</p>
-    <div class="chart-container tall" id="heatmap-main"></div>
-  </div>
-
-  <div class="chart-card">
-    <h2>Protein Distribution</h2>
-    <p class="subtitle">Grams of protein per diet</p>
-    <div class="chart-container" id="heatmap-protein"></div>
-  </div>
-
-  <div class="chart-card">
-    <h2>Carbohydrate Distribution</h2>
-    <p class="subtitle">Grams of carbs per diet</p>
-    <div class="chart-container" id="heatmap-carbs"></div>
-  </div>
-
-  <div class="chart-card full-width">
-    <h2>Fat Distribution</h2>
-    <p class="subtitle">Grams of fat per diet</p>
-    <div class="chart-container" id="heatmap-fat"></div>
-  </div>
-
-</div>
+<div id="charts" style="display:none;"></div>
 
 <script>
   const API_URL = "https://dietanalysis-akg9fehjc3g2htah.canadacentral-01.azurewebsites.net/api/AnalysisFunction";
 
-  const PLOTLY_LAYOUT_BASE = {
-    paper_bgcolor: "transparent",
-    plot_bgcolor: "transparent",
-    font: { color: "#c9d1e0", family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
-    margin: { t: 20, r: 20, b: 60, l: 120 },
-    xaxis: { tickfont: { size: 13 }, gridcolor: "#2a2d3a" },
-    yaxis: { tickfont: { size: 13 }, gridcolor: "#2a2d3a" },
-  };
-
-  const PLOTLY_CONFIG = { responsive: true, displayModeBar: false };
-
-  async function fetchData() {
-    const res = await fetch(API_URL);
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    return res.json();
-  }
-
-  // Normalize whatever shape the API returns into { dietName: { protein, carbs, fat } }
-  function normalize(raw) {
-    // If array of objects
-    if (Array.isArray(raw)) {
-      return raw.map(item => ({
-        diet: item.diet ?? item.Diet ?? item.name ?? item.Name ?? item.dietType ?? "Unknown",
-        protein: +(item.protein ?? item.Protein ?? item.Protein_g ?? 0),
-        carbs: +(item.carbs ?? item.Carbs ?? item.Carbohydrates ?? item.Carbs_g ?? 0),
-        fat: +(item.fat ?? item.Fat ?? item.Fat_g ?? 0),
-      }));
-    }
-
-    // If object keyed by diet name
-    if (typeof raw === "object" && raw !== null) {
-      return Object.entries(raw).map(([diet, vals]) => ({
-        diet,
-        protein: +(vals.protein ?? vals.Protein ?? vals.Protein_g ?? 0),
-        carbs: +(vals.carbs ?? vals.Carbs ?? vals.Carbohydrates ?? vals.Carbs_g ?? 0),
-        fat: +(vals.fat ?? vals.Fat ?? vals.Fat_g ?? 0),
-      }));
-    }
-
-    throw new Error("Unrecognized API response shape");
-  }
-
-  function renderMainHeatmap(rows) {
-    const diets = rows.map(r => r.diet);
-    const nutrients = ["Protein (g)", "Carbs (g)", "Fat (g)"];
-    const z = rows.map(r => [r.protein, r.carbs, r.fat]);
-
-    Plotly.newPlot("heatmap-main", [{
-      type: "heatmap",
-      x: nutrients,
-      y: diets,
-      z,
-      colorscale: "Viridis",
-      showscale: true,
-      hoverongaps: false,
-      text: z.map(row => row.map(v => `${v.toFixed(1)} g`)),
-      texttemplate: "%{text}",
-      textfont: { size: 14, color: "#ffffff" },
-      colorbar: {
-        tickfont: { color: "#c9d1e0" },
-        title: { text: "g", font: { color: "#c9d1e0" } },
-      },
-    }], {
-      ...PLOTLY_LAYOUT_BASE,
-      margin: { t: 20, r: 80, b: 60, l: 140 },
-    }, PLOTLY_CONFIG);
-  }
-
-  function renderSingleNutrientHeatmap(containerId, rows, nutrientKey, colorscale) {
-    const diets = rows.map(r => r.diet);
-    const z = rows.map(r => [r[nutrientKey]]);
-
-    Plotly.newPlot(containerId, [{
-      type: "heatmap",
-      x: [nutrientKey.charAt(0).toUpperCase() + nutrientKey.slice(1) + " (g)"],
-      y: diets,
-      z,
-      colorscale,
-      showscale: true,
-      text: z.map(row => row.map(v => `${v.toFixed(1)} g`)),
-      texttemplate: "%{text}",
-      textfont: { size: 14, color: "#ffffff" },
-      colorbar: {
-        tickfont: { color: "#c9d1e0" },
-        title: { text: "g", font: { color: "#c9d1e0" } },
-      },
-    }], {
-      ...PLOTLY_LAYOUT_BASE,
-      margin: { t: 20, r: 80, b: 60, l: 140 },
-    }, PLOTLY_CONFIG);
-  }
-
   async function main() {
     const statusEl = document.getElementById("status");
+    const chartsEl = document.getElementById("charts");
     try {
-      const raw = await fetchData();
-      const rows = normalize(raw);
+      const res = await fetch(API_URL);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data = await res.json();
+
+      const urls = data.charts ?? [];
+      if (!urls.length) throw new Error("No chart URLs returned by API");
+
+      urls.forEach(url => {
+        const title = url.split("/").pop().replace(/\.\w+$/, "").replace(/_/g, " ");
+        const card = document.createElement("div");
+        card.className = "chart-card";
+        card.innerHTML = `<h2>${title}</h2><img src="${url}" alt="${title}" />`;
+        chartsEl.appendChild(card);
+      });
 
       statusEl.style.display = "none";
-      document.getElementById("charts").style.display = "grid";
-
-      renderMainHeatmap(rows);
-      renderSingleNutrientHeatmap("heatmap-protein", rows, "protein", "Blues");
-      renderSingleNutrientHeatmap("heatmap-carbs", rows, "carbs", "Oranges");
-      renderSingleNutrientHeatmap("heatmap-fat", rows, "fat", "Reds");
+      chartsEl.style.display = "grid";
 
     } catch (err) {
       statusEl.textContent = `Failed to load data: ${err.message}`;
