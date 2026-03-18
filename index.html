@@ -42,24 +42,39 @@
 
     #status.error { color: #ff6b6b; }
 
-    /* Filter buttons */
-    #filters {
+    /* Section labels */
+    .section-label {
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #555;
+      margin-bottom: 0.75rem;
+    }
+
+    /* Filter button groups */
+    .filter-group {
       display: flex;
       justify-content: center;
-      gap: 0.75rem;
+      gap: 0.6rem;
       flex-wrap: wrap;
-      margin-bottom: 2rem;
+      margin-bottom: 1rem;
+      max-width: 1000px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .filter-btn {
-      padding: 0.5rem 1.25rem;
+      padding: 0.45rem 1.1rem;
       border-radius: 999px;
       border: 1px solid #2a2d3a;
       background: #1a1d27;
       color: #c9d1e0;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       cursor: pointer;
       transition: background 0.15s, border-color 0.15s, color 0.15s;
+      text-transform: capitalize;
     }
 
     .filter-btn:hover {
@@ -72,6 +87,19 @@
       border-color: #4f6ef7;
       color: #ffffff;
       font-weight: 600;
+    }
+
+    .filter-btn.cuisine.active {
+      background: #2ecc71;
+      border-color: #2ecc71;
+    }
+
+    /* Divider */
+    .divider {
+      border: none;
+      border-top: 1px solid #2a2d3a;
+      max-width: 800px;
+      margin: 1.5rem auto;
     }
 
     /* Nutrient panel */
@@ -126,6 +154,67 @@
     .bar-fill.carbs   { background: #f7a24f; }
     .bar-fill.fat     { background: #f74f4f; }
 
+    /* Recipe panel */
+    #recipe-panel {
+      max-width: 800px;
+      margin: 0 auto 2rem;
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: none;
+    }
+
+    #recipe-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 1rem;
+    }
+
+    #recipe-panel h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #ffffff;
+      text-transform: capitalize;
+    }
+
+    #recipe-count {
+      font-size: 0.8rem;
+      color: #666;
+    }
+
+    #recipe-search {
+      width: 100%;
+      padding: 0.5rem 0.85rem;
+      border-radius: 8px;
+      border: 1px solid #2a2d3a;
+      background: #0f1117;
+      color: #e0e0e0;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      outline: none;
+    }
+
+    #recipe-search:focus { border-color: #2ecc71; }
+
+    #recipe-list {
+      list-style: none;
+      max-height: 360px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #2a2d3a transparent;
+    }
+
+    #recipe-list li {
+      padding: 0.55rem 0.5rem;
+      border-bottom: 1px solid #1f2230;
+      font-size: 0.88rem;
+      color: #c9d1e0;
+    }
+
+    #recipe-list li:last-child { border-bottom: none; }
+
     /* Chart images */
     #charts {
       display: grid;
@@ -170,12 +259,16 @@
 
 <div id="status">Loading data from API...</div>
 
-<div id="filters" style="display:none;">
-  <button class="filter-btn" data-diet="dash">DASH</button>
-  <button class="filter-btn" data-diet="keto">Keto</button>
-  <button class="filter-btn" data-diet="mediterranean">Mediterranean</button>
-  <button class="filter-btn" data-diet="paleo">Paleo</button>
-  <button class="filter-btn" data-diet="vegan">Vegan</button>
+<!-- Diet type filters -->
+<div id="diet-section" style="display:none;">
+  <p class="section-label">Diet Type</p>
+  <div class="filter-group" id="diet-filters">
+    <button class="filter-btn" data-diet="dash">DASH</button>
+    <button class="filter-btn" data-diet="keto">Keto</button>
+    <button class="filter-btn" data-diet="mediterranean">Mediterranean</button>
+    <button class="filter-btn" data-diet="paleo">Paleo</button>
+    <button class="filter-btn" data-diet="vegan">Vegan</button>
+  </div>
 </div>
 
 <div id="nutrient-panel">
@@ -196,23 +289,42 @@
   </div>
 </div>
 
+<hr class="divider" id="divider" style="display:none;" />
+
+<!-- Cuisine type filters -->
+<div id="cuisine-section" style="display:none;">
+  <p class="section-label">Cuisine Type</p>
+  <div class="filter-group" id="cuisine-filters"></div>
+</div>
+
+<div id="recipe-panel">
+  <div id="recipe-panel-header">
+    <h2 id="recipe-title"></h2>
+    <span id="recipe-count"></span>
+  </div>
+  <input type="search" id="recipe-search" placeholder="Search recipes..." />
+  <ul id="recipe-list"></ul>
+</div>
+
+<hr class="divider" id="divider2" style="display:none;" />
+
 <div id="charts" style="display:none;"></div>
 
 <script>
   const API_URL = "https://dietanalysis-akg9fehjc3g2htah.canadacentral-01.azurewebsites.net/api/AnalysisFunction";
 
   let records = {};
+  let cuisineRecipes = {};
+  let currentRecipes = [];
 
   function showDiet(dietKey) {
     const entry = records[dietKey];
     if (!entry) return;
 
-    // Update active button
-    document.querySelectorAll(".filter-btn").forEach(btn => {
+    document.querySelectorAll("#diet-filters .filter-btn").forEach(btn => {
       btn.classList.toggle("active", btn.dataset.diet === dietKey);
     });
 
-    // Max value across all diets for scaling bars
     const allVals = Object.values(records).flatMap(r => [r.protein, r.carbs, r.fat]);
     const max = Math.max(...allVals);
 
@@ -227,17 +339,44 @@
     document.getElementById("nutrient-panel").style.display = "block";
   }
 
+  function renderRecipeList(recipes) {
+    const list = document.getElementById("recipe-list");
+    list.innerHTML = "";
+    recipes.forEach(name => {
+      const li = document.createElement("li");
+      li.textContent = name;
+      list.appendChild(li);
+    });
+    document.getElementById("recipe-count").textContent = `${recipes.length} recipes`;
+  }
+
+  function showCuisine(cuisineKey) {
+    currentRecipes = cuisineRecipes[cuisineKey] ?? [];
+
+    document.querySelectorAll("#cuisine-filters .filter-btn").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.cuisine === cuisineKey);
+    });
+
+    document.getElementById("recipe-title").textContent = cuisineKey + " Recipes";
+    document.getElementById("recipe-search").value = "";
+    renderRecipeList(currentRecipes);
+    document.getElementById("recipe-panel").style.display = "block";
+  }
+
   async function main() {
-    const statusEl  = document.getElementById("status");
-    const chartsEl  = document.getElementById("charts");
-    const filtersEl = document.getElementById("filters");
+    const statusEl        = document.getElementById("status");
+    const chartsEl        = document.getElementById("charts");
+    const dietSection     = document.getElementById("diet-section");
+    const cuisineSection  = document.getElementById("cuisine-section");
+    const divider         = document.getElementById("divider");
+    const divider2        = document.getElementById("divider2");
 
     try {
       const res = await fetch(API_URL);
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       const data = await res.json();
 
-      // Index records by Diet_type key
+      // Index diet records
       (data.records ?? []).forEach(item => {
         const key = (item.Diet_type ?? "").toLowerCase();
         records[key] = {
@@ -248,9 +387,28 @@
         };
       });
 
-      // Wire up filter buttons
-      document.querySelectorAll(".filter-btn").forEach(btn => {
+      // Wire up diet buttons
+      document.querySelectorAll("#diet-filters .filter-btn").forEach(btn => {
         btn.addEventListener("click", () => showDiet(btn.dataset.diet));
+      });
+
+      // Build cuisine buttons dynamically
+      cuisineRecipes = data.recipes ?? {};
+      const cuisineFiltersEl = document.getElementById("cuisine-filters");
+      Object.keys(cuisineRecipes).sort().forEach(cuisine => {
+        const btn = document.createElement("button");
+        btn.className = "filter-btn cuisine";
+        btn.dataset.cuisine = cuisine;
+        btn.textContent = cuisine;
+        btn.addEventListener("click", () => showCuisine(cuisine));
+        cuisineFiltersEl.appendChild(btn);
+      });
+
+      // Search filter
+      document.getElementById("recipe-search").addEventListener("input", e => {
+        const q = e.target.value.toLowerCase();
+        const filtered = q ? currentRecipes.filter(r => r.toLowerCase().includes(q)) : currentRecipes;
+        renderRecipeList(filtered);
       });
 
       // Render chart images
@@ -262,9 +420,12 @@
         chartsEl.appendChild(card);
       });
 
-      statusEl.style.display  = "none";
-      filtersEl.style.display = "flex";
-      chartsEl.style.display  = "grid";
+      statusEl.style.display       = "none";
+      dietSection.style.display    = "block";
+      divider.style.display        = "block";
+      cuisineSection.style.display = "block";
+      divider2.style.display       = "block";
+      chartsEl.style.display       = "grid";
 
     } catch (err) {
       statusEl.textContent = `Failed to load data: ${err.message}`;
