@@ -1,0 +1,4 @@
+api/local.settings.json
+__pycache__/
+*.pyc
+.env
