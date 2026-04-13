@@ -268,7 +268,6 @@
       padding: 2rem;
       border-radius: 12px;
       width: 320px;
-      text-align: center;
     }
 
     .auth-box h2 {
@@ -277,54 +276,41 @@
 
     .auth-box input {
       width: 100%;
-      margin-bottom: 0.75rem;
       padding: 0.5rem;
+      margin-bottom: 0.75rem;
       border-radius: 6px;
       border: 1px solid #2a2d3a;
       background: #0f1117;
-      color: #e0e0e0;
+      color: #fff;
     }
 
     .auth-box button {
       width: 100%;
-      padding: 0.5rem;
-      margin-top: 0.5rem;
+      padding: 0.6rem;
+      background: #4f6ef7;
       border: none;
       border-radius: 6px;
-      background: #4f6ef7;
       color: white;
       cursor: pointer;
+      margin-bottom: 0.5rem;
     }
 
     .auth-box button:hover {
       opacity: 0.9;
     }
 
-    .auth-toggle {
-      margin-top: 0.75rem;
-      font-size: 0.8rem;
-      color: #888;
-      cursor: pointer;
-    }
-
-    /* USER BAR */
     #user-bar {
       position: fixed;
-      top: 1rem;
-      right: 1.5rem;
-      background: #1a1d27;
-      border: 1px solid #2a2d3a;
-      padding: 0.5rem 0.8rem;
-      border-radius: 8px;
+      top: 15px;
+      right: 20px;
       display: none;
-      align-items: center;
-      gap: 0.75rem;
     }
 
     #user-bar button {
+      margin-left: 10px;
+      padding: 0.4rem 0.7rem;
       background: #ff6b6b;
       border: none;
-      padding: 0.3rem 0.6rem;
       border-radius: 6px;
       color: white;
       cursor: pointer;
@@ -332,30 +318,30 @@
   </style>
 </head>
 <body>
-  <!-- AUTH OVERLAY -->
-<div id="auth-overlay">
-  <div class="auth-box" id="auth-box">
-    <h2 id="auth-title">Login</h2>
 
-    <input type="text" id="name" placeholder="Name (register only)" style="display:none;" />
-    <input type="email" id="email" placeholder="Email" />
-    <input type="password" id="password" placeholder="Password" />
-
-    <button onclick="submitAuth()" id="auth-btn">Login</button>
-
-    <button onclick="googleLogin()">Continue with Google</button>
-
-    <div class="auth-toggle" onclick="toggleAuthMode()">
-      Don't have an account? Register
+  <div id="auth-overlay">
+    <div class="auth-box">
+      <h2>Login</h2>
+  
+      <input id="login-email" placeholder="Email" />
+      <input id="login-password" type="password" placeholder="Password" />
+      <button onclick="submitLogin()">Login</button>
+  
+      <h2>Register</h2>
+  
+      <input id="reg-name" placeholder="Name" />
+      <input id="reg-email" placeholder="Email" />
+      <input id="reg-password" type="password" placeholder="Password" />
+      <button onclick="submitRegister()">Register</button>
+  
+      <button onclick="googleLogin()">Continue with Google</button>
     </div>
   </div>
-</div>
-
-<!-- USER BAR -->
-<div id="user-bar">
-  <span id="user-name"></span>
-  <button onclick="logout()">Logout</button>
-</div>
+  
+  <div id="user-bar">
+    <span id="user-name"></span>
+    <button onclick="logout()">Logout</button>
+  </div>
 
 <header>
   <h1>Diet Analysis Dashboard</h1>
@@ -422,6 +408,115 @@
   let cuisineRecipes = {};
   let currentRecipes = [];
 
+  const API_BASE = "/api";
+
+  function parseJwtPayload(token) {
+    try {
+      if (!token || token.split('.').length !== 3) return null;
+
+      const base64 = token.split('.')[1]
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+
+      const json = atob(base64);
+      return JSON.parse(json);
+    } catch (e) {
+      console.warn("Invalid token:", e);
+      return null;
+    }
+  }
+
+  function isTokenValid(token) {
+    const payload = parseJwtPayload(token);
+    return payload && payload.exp > Math.floor(Date.now() / 1000);
+  }
+
+
+  function initAuth() {
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get("token");
+
+    if (urlToken) {
+      localStorage.setItem("token", urlToken);
+      history.replaceState({}, "", "/");
+    }
+
+    const token = localStorage.getItem("token");
+
+    if (token && isTokenValid(token)) {
+      const payload = parseJwtPayload(token);
+      showDashboard(payload.name || "User");
+    } else {
+      document.getElementById("auth-overlay").style.display = "flex";
+    }
+  }
+
+  function showDashboard(name) {
+    document.getElementById("auth-overlay").style.display = "none";
+    document.getElementById("user-bar").style.display = "block";
+    document.getElementById("user-name").textContent = name;
+
+    main(); // load dashboard
+  }
+
+  async function submitLogin() {
+    try {
+      const res = await fetch(`${API_BASE}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: document.getElementById("login-email").value,
+          password: document.getElementById("login-password").value
+        })
+      });
+
+      if (!res.ok) throw new Error("Login failed");
+
+      const data = await res.json();
+      if (!data.token) throw new Error("Invalid response");
+
+      localStorage.setItem("token", data.token);
+      showDashboard(data.name);
+
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function submitRegister() {
+    try {
+      const res = await fetch(`${API_BASE}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: document.getElementById("reg-name").value,
+          email: document.getElementById("reg-email").value,
+          password: document.getElementById("reg-password").value
+        })
+      });
+
+      if (!res.ok) throw new Error("Register failed");
+
+      const data = await res.json();
+      if (!data.token) throw new Error("Invalid response");
+
+      localStorage.setItem("token", data.token);
+      showDashboard(data.name);
+
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+function googleLogin() {
+  window.location.href = `${API_BASE}/googleAuth`;
+}
+
+function logout() {
+  localStorage.removeItem("token");
+  location.reload();
+}
+
   function showDiet(dietKey) {
     const entry = records[dietKey];
     if (!entry) return;
@@ -467,99 +562,6 @@
     renderRecipeList(currentRecipes);
     document.getElementById("recipe-panel").style.display = "block";
   }
-
-  let isLogin = true;
-
-function parseJwtPayload(token) {
-  return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-}
-
-function isTokenValid(token) {
-  try {
-    const payload = parseJwtPayload(token);
-    return payload.exp > Math.floor(Date.now() / 1000);
-  } catch {
-    return false;
-  }
-}
-
-function toggleAuthMode() {
-  isLogin = !isLogin;
-
-  document.getElementById("auth-title").textContent = isLogin ? "Login" : "Register";
-  document.getElementById("auth-btn").textContent = isLogin ? "Login" : "Register";
-  document.getElementById("name").style.display = isLogin ? "none" : "block";
-
-  document.querySelector(".auth-toggle").textContent =
-    isLogin ? "Don't have an account? Register" : "Already have an account? Login";
-}
-
-async function submitAuth() {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-  const name = document.getElementById("name").value;
-
-  const url = isLogin ? "/api/login" : "/api/register";
-
-  const body = isLogin
-    ? { email, password }
-    : { name, email, password };
-
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) throw new Error(data.error || "Auth failed");
-
-    localStorage.setItem("token", data.token);
-    showDashboard(data.name);
-
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-function googleLogin() {
-  window.location.href = "/api/googleAuth";
-}
-
-function showDashboard(name) {
-  document.getElementById("auth-overlay").style.display = "none";
-  const bar = document.getElementById("user-bar");
-  bar.style.display = "flex";
-  document.getElementById("user-name").textContent = name;
-
-  main(); // load dashboard AFTER login
-}
-
-function logout() {
-  localStorage.removeItem("token");
-  location.reload();
-}
-
-function initAuth() {
-  const params = new URLSearchParams(window.location.search);
-  const urlToken = params.get("token");
-
-  if (urlToken) {
-    history.replaceState({}, '', '/');
-    localStorage.setItem("token", urlToken);
-  }
-
-  const token = localStorage.getItem("token");
-
-  if (token && isTokenValid(token)) {
-    const payload = parseJwtPayload(token);
-    showDashboard(payload.name);
-  } else {
-    document.getElementById("auth-overlay").style.display = "flex";
-  }
-}
 
   async function main() {
     const statusEl        = document.getElementById("status");
